@@ -6,9 +6,9 @@
   "author": "Kevin Greene <kevin.greene@kin.com>",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.2.6",
+    "@actions/core": "^1.5.0",
     "@actions/github": "^4.0.0",
-    "@octokit/graphql": "^4.5.7",
-    "date-fns": "^2.16.1"
+    "@octokit/graphql": "^4.8.0",
+    "date-fns": "^2.24.0"
   }
 }
