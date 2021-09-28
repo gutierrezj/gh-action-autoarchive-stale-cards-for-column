@@ -150,7 +150,7 @@ const run = async () => {
 
     const daysOld = core.getInput('days-old');
     const closingMessage = core.getInput("closing-message") || "Issue automatically closed due to inactivity in project board.";
-    
+
     const cutoffDate = sub(new Date(), { days: daysOld })
 
     console.log(`Archiving all cards that have been untouched for ${daysOld} days from column ${columnToArchive}!`);
@@ -162,7 +162,7 @@ const run = async () => {
     // Filter by updated at date
     const cardIdsToArchive = projectCardIdsWithDate
       .filter(card => isBefore(card.updatedAt, cutoffDate))
-      .map(node => { return { cardId: node.id, issueId: node.content.id } })
+      .map(node => { return { cardId: node.id, issueId: node.content ? node.content.id : null } })
 
     // Archive those - https://docs.github.com/en/free-pro-team@latest/rest/reference/projects#update-an-existing-project-card
 
