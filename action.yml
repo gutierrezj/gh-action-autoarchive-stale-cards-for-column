@@ -21,6 +21,9 @@ inputs:
   project-name:
     description: 'The project name'
     required: true
+  closing-message:
+    description: 'Message to add to card issue when it is archived & closed'
+    required: false
 
 outputs:
   archived-count:
