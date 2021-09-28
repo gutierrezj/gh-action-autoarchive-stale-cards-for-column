@@ -35,6 +35,46 @@ const fetchCardsQuery = `query projectCards($owner: String!, $repo: String!, $pr
                            }
                          }`
 
+const fetchCardsAndIssuesQuery = `query projectCards($owner: String!, $repo: String!, $projectName: String!, $cursor: String!) {
+  repository(owner: $owner, name: $repo) {
+    projects(search: $projectName, last: 1) {
+      edges {
+        node {
+          columns(first: 20) {
+            edges {
+              node {
+                name
+                cards(first: 50, after: $cursor, archivedStates: NOT_ARCHIVED) {
+                  pageInfo {
+                    endCursor
+                    hasNextPage
+                  }
+                  edges {
+                    cursor
+                    node {
+                      id
+                      updatedAt
+                      content {
+                        ... on Issue {
+                          id
+                          number
+                          title
+                          url
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`
+
 const archiveCardQuery = `mutation archiveCards($cardId: String!, $isArchived: Boolean = true) {
                              updateProjectCard(input:{projectCardId: $cardId, isArchived: $isArchived}) {
                                projectCard {
@@ -43,8 +83,23 @@ const archiveCardQuery = `mutation archiveCards($cardId: String!, $isArchived: B
                              }
                            }`
 
+
+const closeIssueQuery = `mutation closeIssueFromCard($issueId: ID!, $closeMessage: String!) {
+  addComment(input: {subjectId: $issueId, body: $closeMessage}) {
+    subject {
+      id
+    }
+  }
+  closeIssue(input: {issueId: $issueId}) {
+    issue {
+      id
+    }
+  }
+}
+`
+
 async function fetchCards(repoOwner, repo, projectName, currentCursor, accessToken) {
-  return graphql(fetchCardsQuery, {
+  return graphql(fetchCardsAndIssuesQuery, {
     owner: repoOwner,
     repo: repo,
     projectName: projectName,
@@ -67,7 +122,7 @@ async function fetchCardInfo(repoOwner, repo, projectName, accessToken, columnTo
     let currentCursor = ''
     let nextPage = true
 
-    while(nextPage) {
+    while (nextPage) {
       let projectCards = await fetchCards(repoOwner, repo, projectName, currentCursor, accessToken)
       projectCards = projectCards.repository.projects.edges[0].node.columns.edges.find(edge => edge.node.name.toLowerCase() === columnToArchive.toLowerCase()).node.cards
       projectCardIdsWithDate.push(...projectCards.edges.flatMap(card => card.node).map(dateifyCard))
@@ -78,7 +133,7 @@ async function fetchCardInfo(repoOwner, repo, projectName, accessToken, columnTo
 
     return projectCardIdsWithDate
   }
-  catch(e) {
+  catch (e) {
     console.log('fetchCardInfo error: ', e)
     return []
   }
@@ -94,6 +149,8 @@ const run = async () => {
     const payload = JSON.stringify(github.context.payload, undefined, 2)
 
     const daysOld = core.getInput('days-old');
+    const closingMessage = core.getInput("closing-message") || "Issue automatically closed due to inactivity in project board.";
+    
     const cutoffDate = sub(new Date(), { days: daysOld })
 
     console.log(`Archiving all cards that have been untouched for ${daysOld} days from column ${columnToArchive}!`);
@@ -104,27 +161,34 @@ const run = async () => {
 
     // Filter by updated at date
     const cardIdsToArchive = projectCardIdsWithDate
-          .filter(card => isBefore(card.updatedAt, cutoffDate))
-          .map(node => node.id)
+      .filter(card => isBefore(card.updatedAt, cutoffDate))
+      .map(node => { return { cardId: node.id, issueId: node.content.id } })
 
     // Archive those - https://docs.github.com/en/free-pro-team@latest/rest/reference/projects#update-an-existing-project-card
 
     console.log(`Archiving ${cardIdsToArchive.length} cards`)
 
-    cardIdsToArchive.forEach(async (id) => {
+    cardIdsToArchive.forEach(async (card) => {
       try {
         await graphql(archiveCardQuery, {
-                cardId: id,
-                headers: {
-                  authorization: `bearer ${accessToken}`,
-                },
+          cardId: card.cardId,
+          headers: {
+            authorization: `bearer ${accessToken}`,
+          },
+        })
+        await graphql(closeIssueQuery, {
+          issueID: card.issueId,
+          closeMessage: closingMessage,
+          headers: {
+            authorization: `bearer ${accessToken}`,
+          },
         })
       }
-      catch(e) {
+      catch (e) {
         console.log('archiveCard error: ', e)
         return false
       }
-    })
+    });
 
   } catch (error) {
     core.setFailed(error.message);
