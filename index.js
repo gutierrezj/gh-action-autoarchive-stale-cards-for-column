@@ -84,7 +84,7 @@ const archiveCardQuery = `mutation archiveCards($cardId: String!, $isArchived: B
                            }`
 
 
-const closeIssueQuery = `mutation closeIssueFromCard($issueId: ID!, $closeMessage: String!) {
+const closeIssueQuery = `mutation closeIssueFromCard($issueId: String!, $closeMessage: String!) {
   addComment(input: {subjectId: $issueId, body: $closeMessage}) {
     subject {
       id
@@ -113,7 +113,7 @@ async function fetchCards(repoOwner, repo, projectName, currentCursor, accessTok
 
 const dateifyCard = (card) => {
   const updatedAt = new Date(card.updatedAt)
-  return { id: card.id, updatedAt: updatedAt }
+  return { id: card.id, updatedAt: updatedAt, content: card.content }
 }
 
 async function fetchCardInfo(repoOwner, repo, projectName, accessToken, columnToArchive) {
@@ -155,9 +155,11 @@ const run = async () => {
 
     console.log(`Archiving all cards that have been untouched for ${daysOld} days from column ${columnToArchive}!`);
 
-    console.log(`The event payload: ${payload}`);
+    // console.log(`The event payload: ${payload}`);
 
     const projectCardIdsWithDate = await fetchCardInfo(repoOwner, repo, projectName, accessToken, columnToArchive)
+
+    console.log('project cards: ', projectCardIdsWithDate);
 
     // Filter by updated at date
     const cardIdsToArchive = projectCardIdsWithDate
@@ -177,7 +179,7 @@ const run = async () => {
           },
         })
         await graphql(closeIssueQuery, {
-          issueID: card.issueId,
+          issueId: card.issueId,
           closeMessage: closingMessage,
           headers: {
             authorization: `bearer ${accessToken}`,
